@@ -7,5 +7,6 @@ edition = "2018"
 [dependencies]
 fs_extra = "*"
 iron = "*"
+lazy_static = "*"
 router = "*"
 tempfile = "*"

@@ -1,5 +1,6 @@
 extern crate fs_extra;
 extern crate iron;
+#[macro_use] extern crate lazy_static;
 #[macro_use] extern crate router;
 extern crate tempfile;
 
@@ -22,6 +23,10 @@ impl Config {
       build_expression: env::var("NIX_CHANNEL_PROXY_BUILD_EXPRESSION").ok(),
     }
   }
+}
+
+lazy_static! {
+  static ref CONFIG: Config = Config::from_env();
 }
 
 enum AppError {
@@ -149,34 +154,33 @@ fn deploy(src: &Path, dest: &Path) -> Result<(), AppError> {
     .map(drop)
 }
 
-fn update(config: &Config) -> Result<(), AppError> {
+fn update() -> Result<(), AppError> {
   let tmp = tempfile::tempdir().map_err(AppError::FailedToCreateTemporaryDirectory)?;
-  let nixexprs_url = get_nixexprs_url(&config.upstream_channel_url);
+  let nixexprs_url = get_nixexprs_url(&CONFIG.upstream_channel_url);
   let nixexprs_file = tmp.path().join("nixexprs.tar.xz");
   let nixexprs_unpack_dir = tmp.path().join("unpack");
   download_nixexprs(&nixexprs_url, &nixexprs_file)?;
-  match config.build_expression {
+  match CONFIG.build_expression {
     Some(ref expr) => {
       let nixpkgs = unpack_nixexprs(&nixexprs_file, &nixexprs_unpack_dir)?;
       build(&nixpkgs, expr)?
     },
     None => (),
   }
-  deploy(&nixexprs_file, &config.persistent_nixexprs_path)?;
+  deploy(&nixexprs_file, &CONFIG.persistent_nixexprs_path)?;
   Ok(())
 }
 
-fn update_async(config: Config) {
+fn update_async() {
   ::std::thread::spawn(move || {
-    match update(&config) {
+    match update() {
       Ok(()) => (),
       Err(e) => println!("error: {}", e),
     }
   });
 }
 
-fn serve(config: Config) -> Result<(), AppError> {
-  let nixexprs_path = config.persistent_nixexprs_path.to_path_buf();
+fn serve() -> Result<(), AppError> {
   let addr = "0.0.0.0:8000";
   println!("listening on http://{}/", addr);
   iron::Iron::new(
@@ -185,10 +189,10 @@ fn serve(config: Config) -> Result<(), AppError> {
         Ok(iron::Response::with(iron::status::Status::Ok))
       },
       nixexprs: get "/channel/nixexprs.tar.xz" => move |_req: &mut iron::Request| {
-        Ok(iron::Response::with((iron::status::Status::Ok, nixexprs_path.as_path())))
+        Ok(iron::Response::with((iron::status::Status::Ok, CONFIG.persistent_nixexprs_path.as_path())))
       },
       update: post "/update" => move |_req: &mut iron::Request| {
-        update_async(config.clone());
+        update_async();
         Ok(iron::Response::with(iron::status::Status::Accepted))
       },
     )
@@ -196,9 +200,8 @@ fn serve(config: Config) -> Result<(), AppError> {
 }
 
 fn main_inner() -> Result<(), AppError> {
-  let config = Config::from_env();
-  update_async(config.clone());
-  serve(config)?;
+  update_async();
+  serve()?;
   Ok(())
 }
 
