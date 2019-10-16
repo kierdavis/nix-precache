@@ -1,0 +1,11 @@
+[package]
+name = "channel-proxy"
+version = "0.1.0"
+authors = ["Kier Davis <kierdavis@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+fs_extra = "*"
+iron = "*"
+router = "*"
+tempfile = "*"
