@@ -191,6 +191,9 @@ fn serve() -> Result<(), AppError> {
       nixexprs: get "/channel/nixexprs.tar.xz" => move |_req: &mut iron::Request| {
         Ok(iron::Response::with((iron::status::Status::Ok, CONFIG.persistent_nixexprs_path.as_path())))
       },
+      upstream: get "/upstream" => move |_req: &mut iron::Request| {
+        Ok(iron::Response::with((iron::status::Status::Ok, CONFIG.upstream_channel_url.as_str())))
+      },
       update: post "/update" => move |_req: &mut iron::Request| {
         update_async();
         Ok(iron::Response::with(iron::status::Status::Accepted))
