@@ -1,12 +1,14 @@
 extern crate fs_extra;
 extern crate iron;
-#[macro_use] extern crate lazy_static;
-#[macro_use] extern crate router;
+#[macro_use]
+extern crate lazy_static;
+#[macro_use]
+extern crate router;
 extern crate tempfile;
 
-use std::{env, fmt, fs};
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitStatus};
+use std::{env, fmt, fs};
 
 #[derive(Clone, Debug)]
 struct Config {
@@ -18,8 +20,11 @@ struct Config {
 impl Config {
   fn from_env() -> Config {
     Config {
-      upstream_channel_url: env::var("NIX_CHANNEL_PROXY_UPSTREAM_CHANNEL_URL").unwrap_or("https://nixos.org/channels/nixos-19.03".into()),
-      persistent_nixexprs_path: env::var("NIX_CHANNEL_PROXY_PERSISTENT_NIXEXPRS_PATH").unwrap_or("/tmp/nixexprs.tar.xz".into()).into(),
+      upstream_channel_url: env::var("NIX_CHANNEL_PROXY_UPSTREAM_CHANNEL_URL")
+        .unwrap_or("https://nixos.org/channels/nixos-19.03".into()),
+      persistent_nixexprs_path: env::var("NIX_CHANNEL_PROXY_PERSISTENT_NIXEXPRS_PATH")
+        .unwrap_or("/tmp/nixexprs.tar.xz".into())
+        .into(),
       build_expression: env::var("NIX_CHANNEL_PROXY_BUILD_EXPRESSION").ok(),
     }
   }
@@ -48,32 +53,74 @@ enum AppError {
 impl fmt::Display for AppError {
   fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
     match *self {
-      AppError::FailedToCreateTemporaryDirectory(ref err) =>
-        write!(formatter, "failed to create temporary directory: {}", err),
-      AppError::FailedToDownloadError(ref url, ref dest, ref err) =>
-        write!(formatter, "failed to download {} to {}: {}", url, dest.display(), err),
-      AppError::FailedToDownloadStatus(ref url, ref dest, ref status) =>
-        write!(formatter, "failed to download {} to {}: child process exited with status {}", url, dest.display(), status),
-      AppError::FailedToCreateUnpackDirectory(ref path, ref err) =>
-        write!(formatter, "failed to create {}: {}", path.display(), err),
-      AppError::FailedToUnpackError(ref file, ref dir, ref err) =>
-        write!(formatter, "failed to unpack {} into {}: {}", file.display(), dir.display(), err),
-      AppError::FailedToUnpackStatus(ref file, ref dir, ref status) =>
-        write!(formatter, "failed to unpack {} into {}: child process exited with status {}", file.display(), dir.display(), status),
-      AppError::FailedToReadUnpackDir(ref dir, ref err) =>
-        write!(formatter, "failed to read directory {}: {}", dir.display(), err),
-      AppError::UnpackedTooFewEntries(ref dir) =>
-        write!(formatter, "unpack produced too few files in {}", dir.display()),
-      AppError::UnpackedTooManyEntries(ref dir) =>
-        write!(formatter, "unpack produced too many files in {}", dir.display()),
-      AppError::FailedToBuildError(ref err) =>
-        write!(formatter, "failed to pre-build targets: {}", err),
-      AppError::FailedToBuildStatus(ref status) =>
-        write!(formatter, "failed to pre-build targets: child process exited with status {}", status),
-      AppError::FailedToRename(ref src, ref dest, ref err) =>
-        write!(formatter, "failed to rename {} to {}: {}", src.display(), dest.display(), err),
-      AppError::FailedToStartServer(ref err) =>
-        write!(formatter, "failed to start HTTP server: {}", err),
+      AppError::FailedToCreateTemporaryDirectory(ref err) => {
+        write!(formatter, "failed to create temporary directory: {}", err)
+      }
+      AppError::FailedToDownloadError(ref url, ref dest, ref err) => write!(
+        formatter,
+        "failed to download {} to {}: {}",
+        url,
+        dest.display(),
+        err
+      ),
+      AppError::FailedToDownloadStatus(ref url, ref dest, ref status) => write!(
+        formatter,
+        "failed to download {} to {}: child process exited with status {}",
+        url,
+        dest.display(),
+        status
+      ),
+      AppError::FailedToCreateUnpackDirectory(ref path, ref err) => {
+        write!(formatter, "failed to create {}: {}", path.display(), err)
+      }
+      AppError::FailedToUnpackError(ref file, ref dir, ref err) => write!(
+        formatter,
+        "failed to unpack {} into {}: {}",
+        file.display(),
+        dir.display(),
+        err
+      ),
+      AppError::FailedToUnpackStatus(ref file, ref dir, ref status) => write!(
+        formatter,
+        "failed to unpack {} into {}: child process exited with status {}",
+        file.display(),
+        dir.display(),
+        status
+      ),
+      AppError::FailedToReadUnpackDir(ref dir, ref err) => write!(
+        formatter,
+        "failed to read directory {}: {}",
+        dir.display(),
+        err
+      ),
+      AppError::UnpackedTooFewEntries(ref dir) => write!(
+        formatter,
+        "unpack produced too few files in {}",
+        dir.display()
+      ),
+      AppError::UnpackedTooManyEntries(ref dir) => write!(
+        formatter,
+        "unpack produced too many files in {}",
+        dir.display()
+      ),
+      AppError::FailedToBuildError(ref err) => {
+        write!(formatter, "failed to pre-build targets: {}", err)
+      }
+      AppError::FailedToBuildStatus(ref status) => write!(
+        formatter,
+        "failed to pre-build targets: child process exited with status {}",
+        status
+      ),
+      AppError::FailedToRename(ref src, ref dest, ref err) => write!(
+        formatter,
+        "failed to rename {} to {}: {}",
+        src.display(),
+        dest.display(),
+        err
+      ),
+      AppError::FailedToStartServer(ref err) => {
+        write!(formatter, "failed to start HTTP server: {}", err)
+      }
     }
   }
 }
@@ -93,14 +140,19 @@ fn download_nixexprs(url: &str, dest: &Path) -> Result<(), AppError> {
     .arg("--location")
     .arg("--silent")
     .arg("--show-error")
-    .arg("--output").arg(dest.to_str().unwrap())
+    .arg("--output")
+    .arg(dest.to_str().unwrap())
     .arg(url)
     .status()
     .map_err(|e| AppError::FailedToDownloadError(url.to_string(), dest.to_path_buf(), e))?;
   if status.success() {
     Ok(())
   } else {
-    Err(AppError::FailedToDownloadStatus(url.to_string(), dest.to_path_buf(), status))
+    Err(AppError::FailedToDownloadStatus(
+      url.to_string(),
+      dest.to_path_buf(),
+      status,
+    ))
   }
 }
 
@@ -111,8 +163,10 @@ fn unpack_nixexprs(file: &Path, dest_dir: &Path) -> Result<PathBuf, AppError> {
   let status = Command::new("tar")
     .arg("--extract")
     .arg("--xz")
-    .arg("--file").arg(file.to_str().unwrap())
-    .arg("--directory").arg(dest_dir.to_str().unwrap())
+    .arg("--file")
+    .arg(file.to_str().unwrap())
+    .arg("--directory")
+    .arg(dest_dir.to_str().unwrap())
     .status()
     .map_err(|e| AppError::FailedToUnpackError(file.to_path_buf(), dest_dir.to_path_buf(), e))?;
   if status.success() {
@@ -125,7 +179,11 @@ fn unpack_nixexprs(file: &Path, dest_dir: &Path) -> Result<PathBuf, AppError> {
       (Some(_), Some(_)) => Err(AppError::UnpackedTooManyEntries(dest_dir.to_path_buf())),
     }
   } else {
-    Err(AppError::FailedToUnpackStatus(file.to_path_buf(), dest_dir.to_path_buf(), status))
+    Err(AppError::FailedToUnpackStatus(
+      file.to_path_buf(),
+      dest_dir.to_path_buf(),
+      status,
+    ))
   }
 }
 
@@ -133,8 +191,10 @@ fn build(nixpkgs: &Path, expression: &str) -> Result<(), AppError> {
   println!("pre-building targets");
   let status = Command::new("nix-build")
     .arg("--no-out-link")
-    .arg("-I").arg(format!("nixpkgs={}", nixpkgs.display()))
-    .arg("--expr").arg(expression)
+    .arg("-I")
+    .arg(format!("nixpkgs={}", nixpkgs.display()))
+    .arg("--expr")
+    .arg(expression)
     .status()
     .map_err(|e| AppError::FailedToBuildError(e))?;
   if status.success() {
@@ -146,7 +206,7 @@ fn build(nixpkgs: &Path, expression: &str) -> Result<(), AppError> {
 
 fn deploy(src: &Path, dest: &Path) -> Result<(), AppError> {
   println!("installing {} to {}", src.display(), dest.display());
-  use fs_extra::file::{CopyOptions, move_file};
+  use fs_extra::file::{move_file, CopyOptions};
   let mut opts = CopyOptions::new();
   opts.overwrite = true;
   move_file(src, dest, &opts)
@@ -164,7 +224,7 @@ fn update() -> Result<(), AppError> {
     Some(ref expr) => {
       let nixpkgs = unpack_nixexprs(&nixexprs_file, &nixexprs_unpack_dir)?;
       build(&nixpkgs, expr)?
-    },
+    }
     None => (),
   }
   deploy(&nixexprs_file, &CONFIG.persistent_nixexprs_path)?;
@@ -172,11 +232,9 @@ fn update() -> Result<(), AppError> {
 }
 
 fn update_async() {
-  ::std::thread::spawn(move || {
-    match update() {
-      Ok(()) => (),
-      Err(e) => println!("error: {}", e),
-    }
+  ::std::thread::spawn(move || match update() {
+    Ok(()) => (),
+    Err(e) => println!("error: {}", e),
   });
 }
 

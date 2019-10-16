@@ -4,5 +4,6 @@ mkShell {
   buildInputs = [
     cargo
     openssl.dev
+    rustfmt
   ];
 }
